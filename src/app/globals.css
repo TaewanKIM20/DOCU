@@ -1,0 +1,149 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* TipTap 에디터 기본 스타일 */
+.ProseMirror {
+  outline: none;
+  min-height: 60vh;
+  padding: 2rem 3rem;
+  font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', -apple-system, sans-serif;
+  font-size: 11pt;
+  line-height: 1.8;
+  color: #111;
+}
+
+/* 선택 영역 */
+.ProseMirror ::selection {
+  background: #bfdbfe;
+}
+
+/* 제목 */
+.ProseMirror h1 { font-size: 2em; font-weight: 700; margin: 0.67em 0; }
+.ProseMirror h2 { font-size: 1.5em; font-weight: 700; margin: 0.75em 0; }
+.ProseMirror h3 { font-size: 1.17em; font-weight: 600; margin: 0.83em 0; }
+.ProseMirror h4 { font-size: 1em; font-weight: 600; margin: 1em 0; }
+
+/* 단락 */
+.ProseMirror p { margin: 0.4em 0; }
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #aaa;
+  pointer-events: none;
+  height: 0;
+}
+
+/* 목록 */
+.ProseMirror ul { list-style-type: disc; padding-left: 1.5em; }
+.ProseMirror ol { list-style-type: decimal; padding-left: 1.5em; }
+.ProseMirror li { margin: 0.25em 0; }
+
+/* 인용 */
+.ProseMirror blockquote {
+  border-left: 4px solid #d1d5db;
+  margin: 1em 0;
+  padding-left: 1em;
+  color: #6b7280;
+  font-style: italic;
+}
+
+/* 코드 */
+.ProseMirror code {
+  background: #f3f4f6;
+  border-radius: 3px;
+  padding: 0.1em 0.3em;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 0.9em;
+}
+.ProseMirror pre {
+  background: #1f2937;
+  color: #f9fafb;
+  border-radius: 6px;
+  padding: 1em 1.2em;
+  overflow-x: auto;
+  margin: 1em 0;
+}
+.ProseMirror pre code {
+  background: none;
+  padding: 0;
+  color: inherit;
+  font-size: 0.9em;
+}
+
+/* 표 */
+.ProseMirror table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1em 0;
+  table-layout: fixed;
+}
+.ProseMirror table td,
+.ProseMirror table th {
+  border: 1px solid #d1d5db;
+  padding: 6px 10px;
+  vertical-align: top;
+  position: relative;
+  min-width: 60px;
+}
+.ProseMirror table th {
+  background: #f9fafb;
+  font-weight: 600;
+}
+.ProseMirror table .selectedCell {
+  background: #dbeafe;
+}
+
+/* 이미지 */
+.ProseMirror img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 0.5em auto;
+  border-radius: 4px;
+}
+.ProseMirror img.ProseMirror-selectednode {
+  outline: 3px solid #3b82f6;
+}
+
+/* 수평선 */
+.ProseMirror hr {
+  border: none;
+  border-top: 2px solid #e5e7eb;
+  margin: 1.5em 0;
+}
+
+/* 하이라이트 */
+.ProseMirror mark {
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+/* 툴바 bold 스타일 */
+.toolbar button[class*="bg-blue-600"] {
+  font-weight: 600;
+}
+
+/* 애니메이션 */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
+/* A4 에디터 영역 */
+.editor-a4 {
+  width: 21cm;
+  min-height: 29.7cm;
+  margin: 0 auto;
+  background: white;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+  border-radius: 2px;
+}
+
+@media print {
+  .toolbar { display: none; }
+  body { background: white; }
+}
