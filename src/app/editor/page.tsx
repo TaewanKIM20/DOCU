@@ -1,14 +1,8 @@
 'use client'
 
-/**
- * 에디터 페이지
- * URL 쿼리: ?data=<base64_skkf>
- * 또는 sessionStorage에서 skkfData 읽기
- */
-
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useEditor } from '@tiptap/react'
+import { EditorContent, useEditor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Image from '@tiptap/extension-image'
 import Table from '@tiptap/extension-table'
@@ -21,21 +15,62 @@ import Color from '@tiptap/extension-color'
 import TextStyle from '@tiptap/extension-text-style'
 import Highlight from '@tiptap/extension-highlight'
 import FontFamily from '@tiptap/extension-font-family'
-import { EditorContent } from '@tiptap/react'
 import Toolbar from '@/components/Toolbar'
+import LayoutEditor, { LayoutEditorHandle } from '@/components/LayoutEditor'
 import { SKKFManifest } from '@/lib/skkf/schema'
 import { FontSize } from '@/lib/extensions/font-size'
 
+const LAYOUT_FORMATS = new Set(['pdf', 'png', 'jpg', 'webp'])
+
+function extractBody(html: string): string {
+  const match = html.match(/<body[^>]*>([\s\S]*)<\/body>/i)
+  return match ? match[1].trim() : html
+}
+
+function isLayoutDocument(html: string, manifest: SKKFManifest | null): boolean {
+  if (!html) return false
+
+  const hasLayoutMarkers =
+    html.includes('data-layout-document') ||
+    html.includes('data-layout-editable') ||
+    (/<html[\s>]/i.test(html) &&
+      /contenteditable\s*=\s*["']true["']/i.test(html) &&
+      /position\s*:\s*absolute/i.test(html))
+
+  if (hasLayoutMarkers) return true
+  return manifest ? LAYOUT_FORMATS.has(manifest.originalFormat) : false
+}
+
+function base64ToBlob(base64: string, mimeType: string): Blob {
+  const byteChars = atob(base64)
+  const byteArrays: ArrayBuffer[] = []
+
+  for (let i = 0; i < byteChars.length; i += 512) {
+    const slice = byteChars.slice(i, i + 512)
+    const byteNumbers = new Array(slice.length).fill(0).map((_, j) => slice.charCodeAt(j))
+    byteArrays.push(new Uint8Array(byteNumbers).buffer as ArrayBuffer)
+  }
+
+  return new Blob(byteArrays, { type: mimeType })
+}
+
 export default function EditorPage() {
   const router = useRouter()
-  const [skkfBase64, setSkkfBase64] = useState<string>('')
+  const [skkfBase64, setSkkfBase64] = useState('')
   const [manifest, setManifest] = useState<SKKFManifest | null>(null)
   const [title, setTitle] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
-  const [statusMsg, setStatusMsg] = useState<string>('')
+  const [statusMsg, setStatusMsg] = useState('')
   const [warnings, setWarnings] = useState<string[]>([])
-  const autoSaveTimer = useRef<NodeJS.Timeout>()
+  const [documentHtml, setDocumentHtml] = useState('')
+  const [initialRichHtml, setInitialRichHtml] = useState('')
+  const [layoutMode, setLayoutMode] = useState(false)
+
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const documentHtmlRef = useRef('')
+  const isHydratingEditorRef = useRef(false)
+  const layoutEditorRef = useRef<LayoutEditorHandle>(null)
 
   const editor = useEditor({
     extensions: [
@@ -57,6 +92,7 @@ export default function EditorPage() {
       FontFamily,
       FontSize,
     ],
+    immediatelyRender: false,
     content: '',
     editorProps: {
       attributes: {
@@ -64,63 +100,27 @@ export default function EditorPage() {
           'prose prose-base max-w-none min-h-[70vh] p-8 focus:outline-none font-sans leading-relaxed',
       },
     },
-    onUpdate: ({ editor }) => {
-      // 자동 저장 (3초 디바운스)
-      clearTimeout(autoSaveTimer.current)
-      autoSaveTimer.current = setTimeout(() => {
-        handleSave(editor.getHTML(), false)
-      }, 3000)
-    },
   })
 
-  // sessionStorage에서 .skkf 데이터 로드
-  useEffect(() => {
-    const storedData = sessionStorage.getItem('skkfData')
-    const storedManifest = sessionStorage.getItem('skkfManifest')
-    const storedHtml = sessionStorage.getItem('skkfHtml')
-    const storedWarnings = sessionStorage.getItem('skkfWarnings')
-
-    if (!storedData || !storedHtml) {
-      router.push('/')
-      return
+  const getCurrentHtml = useCallback(() => {
+    if (layoutMode) {
+      const nextHtml = layoutEditorRef.current?.getHtml() ?? documentHtmlRef.current
+      documentHtmlRef.current = nextHtml
+      setDocumentHtml(nextHtml)
+      return nextHtml
     }
 
-    setSkkfBase64(storedData)
+    const nextHtml = editor?.getHTML() ?? documentHtmlRef.current
+    documentHtmlRef.current = nextHtml
+    setDocumentHtml(nextHtml)
+    return nextHtml
+  }, [editor, layoutMode])
 
-    if (storedManifest) {
-      const m: SKKFManifest = JSON.parse(storedManifest)
-      setManifest(m)
-      setTitle(m.title)
-    }
+  const saveDocument = useCallback(
+    async (html?: string, showStatus = true): Promise<string | null> => {
+      const currentHtml = html ?? getCurrentHtml()
+      if (!skkfBase64 || !currentHtml) return null
 
-    if (storedWarnings) {
-      setWarnings(JSON.parse(storedWarnings))
-    }
-
-    // 에디터에 HTML 주입
-    if (editor && storedHtml) {
-      // iframe을 통해 HTML 파싱 (DOCTYPE, head 등 제거하고 body 내용만 추출)
-      const bodyContent = extractBody(storedHtml)
-      editor.commands.setContent(bodyContent || storedHtml)
-    }
-  }, [editor, router])
-
-  /**
-   * HTML에서 <body> 내용만 추출
-   */
-  const extractBody = (html: string): string => {
-    const match = html.match(/<body[^>]*>([\s\S]*)<\/body>/i)
-    return match ? match[1].trim() : html
-  }
-
-  /**
-   * 서버에 저장 (sessionStorage + API 동기화)
-   */
-  const handleSave = useCallback(
-    async (html?: string, showStatus = true) => {
-      if (!skkfBase64 || !editor) return
-
-      const currentHtml = html || editor.getHTML()
       setIsSaving(true)
 
       try {
@@ -136,56 +136,152 @@ export default function EditorPage() {
           setSkkfBase64(data.skkfBase64)
           sessionStorage.setItem('skkfData', data.skkfBase64)
           sessionStorage.setItem('skkfHtml', currentHtml)
-          if (showStatus) setStatusMsg('✓ 저장됨')
+          if (showStatus) setStatusMsg('문서를 저장했습니다.')
+          return data.skkfBase64
         }
-      } catch (err) {
-        if (showStatus) setStatusMsg('저장 실패')
+
+        if (showStatus) setStatusMsg(data.error || '문서 저장에 실패했습니다.')
+        return null
+      } catch {
+        if (showStatus) setStatusMsg('문서 저장 중 오류가 발생했습니다.')
+        return null
       } finally {
         setIsSaving(false)
-        if (showStatus) setTimeout(() => setStatusMsg(''), 2000)
+        if (showStatus) {
+          setTimeout(() => setStatusMsg(''), 2000)
+        }
       }
     },
-    [skkfBase64, editor, title]
+    [getCurrentHtml, skkfBase64, title]
   )
 
-  /**
-   * .skkf 파일 다운로드
-   */
-  const handleDownloadSkkf = useCallback(async () => {
+  const scheduleAutoSave = useCallback(
+    (nextHtml: string) => {
+      if (autoSaveTimer.current) {
+        clearTimeout(autoSaveTimer.current)
+      }
+
+      autoSaveTimer.current = setTimeout(() => {
+        void saveDocument(nextHtml, false)
+      }, 3000)
+    },
+    [saveDocument]
+  )
+
+  useEffect(() => {
+    const storedData = sessionStorage.getItem('skkfData')
+    const storedManifest = sessionStorage.getItem('skkfManifest')
+    const storedHtml = sessionStorage.getItem('skkfHtml')
+    const storedWarnings = sessionStorage.getItem('skkfWarnings')
+
+    if (!storedData || !storedHtml) {
+      router.push('/')
+      return
+    }
+
+    const nextManifest: SKKFManifest | null = storedManifest ? JSON.parse(storedManifest) : null
+    const nextLayoutMode = isLayoutDocument(storedHtml, nextManifest)
+
+    setSkkfBase64(storedData)
+    setManifest(nextManifest)
+    setTitle(nextManifest?.title || '')
+    setWarnings(storedWarnings ? JSON.parse(storedWarnings) : [])
+    setLayoutMode(nextLayoutMode)
+    setDocumentHtml(storedHtml)
+    documentHtmlRef.current = storedHtml
+    setInitialRichHtml(nextLayoutMode ? '' : extractBody(storedHtml))
+  }, [router])
+
+  useEffect(() => {
+    if (!editor || layoutMode) return
+
+    isHydratingEditorRef.current = true
+    editor.commands.setContent(initialRichHtml || '', false)
+
+    const timer = setTimeout(() => {
+      isHydratingEditorRef.current = false
+    }, 0)
+
+    return () => {
+      clearTimeout(timer)
+    }
+  }, [editor, initialRichHtml, layoutMode])
+
+  useEffect(() => {
     if (!editor) return
 
-    // 먼저 저장
-    await handleSave(editor.getHTML(), false)
+    const handleUpdate = () => {
+      if (layoutMode || isHydratingEditorRef.current) return
 
-    const blob = base64ToBlob(skkfBase64, 'application/x-skkf')
+      const nextHtml = editor.getHTML()
+      if (nextHtml === documentHtmlRef.current) return
+
+      documentHtmlRef.current = nextHtml
+      setDocumentHtml(nextHtml)
+      scheduleAutoSave(nextHtml)
+    }
+
+    editor.on('update', handleUpdate)
+    return () => {
+      editor.off('update', handleUpdate)
+    }
+  }, [editor, layoutMode, scheduleAutoSave])
+
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimer.current) {
+        clearTimeout(autoSaveTimer.current)
+      }
+    }
+  }, [])
+
+  const handleLayoutChange = useCallback(
+    (nextHtml: string) => {
+      if (!nextHtml || nextHtml === documentHtmlRef.current) return
+
+      documentHtmlRef.current = nextHtml
+      setDocumentHtml(nextHtml)
+      scheduleAutoSave(nextHtml)
+    },
+    [scheduleAutoSave]
+  )
+
+  const handleDownloadSkkf = useCallback(async () => {
+    const currentHtml = layoutMode
+      ? layoutEditorRef.current?.flush() ?? documentHtmlRef.current
+      : getCurrentHtml()
+
+    const latestBase64 = (await saveDocument(currentHtml, false)) ?? skkfBase64
+    if (!latestBase64) return
+
+    const blob = base64ToBlob(latestBase64, 'application/x-skkf')
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
     a.download = `${title || 'document'}.skkf`
     a.click()
     URL.revokeObjectURL(url)
-    setStatusMsg('✓ .skkf 저장 완료')
+    setStatusMsg('.skkf 파일 다운로드가 완료되었습니다.')
     setTimeout(() => setStatusMsg(''), 2000)
-  }, [skkfBase64, editor, title, handleSave])
+  }, [getCurrentHtml, layoutMode, saveDocument, skkfBase64, title])
 
-  /**
-   * PDF 내보내기
-   */
   const handleExportPdf = useCallback(async () => {
-    if (!editor || !skkfBase64) return
+    if (!skkfBase64) return
+
+    const currentHtml = layoutMode
+      ? layoutEditorRef.current?.flush() ?? documentHtmlRef.current
+      : getCurrentHtml()
 
     setIsExporting(true)
-    setStatusMsg('PDF 생성 중...')
+    setStatusMsg('PDF를 생성하고 있습니다...')
 
     try {
-      // 현재 HTML 저장
-      const currentHtml = editor.getHTML()
-      await handleSave(currentHtml, false)
+      const latestBase64 = (await saveDocument(currentHtml, false)) ?? skkfBase64
 
       const res = await fetch('/api/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ skkfBase64, title }),
+        body: JSON.stringify({ skkfBase64: latestBase64, title }),
       })
 
       const data = await res.json()
@@ -198,38 +294,83 @@ export default function EditorPage() {
         a.download = `${title || 'document'}.pdf`
         a.click()
         URL.revokeObjectURL(url)
-        setStatusMsg('✓ PDF 다운로드 완료')
+        setStatusMsg('PDF 다운로드가 완료되었습니다.')
       } else {
-        setStatusMsg(`PDF 실패: ${data.error}`)
+        setStatusMsg(`PDF 내보내기 실패: ${data.error}`)
       }
-    } catch (err) {
-      setStatusMsg('PDF 변환 중 오류 발생')
+    } catch {
+      setStatusMsg('PDF 내보내기 중 오류가 발생했습니다.')
     } finally {
       setIsExporting(false)
       setTimeout(() => setStatusMsg(''), 3000)
     }
-  }, [skkfBase64, editor, title, handleSave])
+  }, [getCurrentHtml, layoutMode, saveDocument, skkfBase64, title])
+
+  const renderLayoutToolbar = () => (
+    <div className="sticky top-0 z-10 bg-white border-b border-gray-200 shadow-sm">
+      <div className="px-4 py-2 border-b border-gray-100">
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="문서 제목"
+          className="w-full text-lg font-semibold text-gray-800 bg-transparent border-none outline-none placeholder-gray-400"
+        />
+      </div>
+      <div className="flex flex-wrap items-center gap-2 px-4 py-2">
+        <span className="text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-1 rounded-full">
+          레이아웃 고정 모드: 원본 배치를 유지한 채 텍스트만 수정합니다.
+        </span>
+        <div className="ml-auto flex gap-2">
+          <button
+            onClick={handleDownloadSkkf}
+            className="px-3 py-1 rounded text-sm bg-indigo-100 text-indigo-700 hover:bg-indigo-200 font-medium"
+          >
+            .skkf 다운로드
+          </button>
+          <button
+            onClick={() => void saveDocument(undefined, true)}
+            disabled={isSaving}
+            className="px-3 py-1 rounded text-sm bg-green-500 text-white hover:bg-green-600 disabled:opacity-50 font-medium"
+          >
+            {isSaving ? '저장 중...' : '저장'}
+          </button>
+          <button
+            onClick={handleExportPdf}
+            disabled={isExporting}
+            className="px-3 py-1 rounded text-sm bg-red-500 text-white hover:bg-red-600 disabled:opacity-50 font-medium"
+          >
+            {isExporting ? 'PDF 생성 중...' : 'PDF 다운로드'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
-      {/* 툴바 */}
-      <Toolbar
-        editor={editor}
-        onSave={() => handleSave()}
-        onExportPdf={handleExportPdf}
-        onDownloadSkkf={handleDownloadSkkf}
-        isSaving={isSaving}
-        isExporting={isExporting}
-        title={title}
-        onTitleChange={setTitle}
-      />
+      {layoutMode ? (
+        renderLayoutToolbar()
+      ) : (
+        <Toolbar
+          editor={editor}
+          onSave={() => void saveDocument(undefined, true)}
+          onExportPdf={handleExportPdf}
+          onDownloadSkkf={handleDownloadSkkf}
+          isSaving={isSaving}
+          isExporting={isExporting}
+          title={title}
+          onTitleChange={setTitle}
+        />
+      )}
 
-      {/* 경고 메시지 */}
       {warnings.length > 0 && (
         <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-start gap-2">
-          <span className="text-amber-500 text-sm">⚠️</span>
+          <span className="text-amber-500 text-sm">주의</span>
           <div className="text-amber-700 text-sm flex-1">
-            {warnings.map((w, i) => <div key={i}>{w}</div>)}
+            {warnings.map((warning, index) => (
+              <div key={index}>{warning}</div>
+            ))}
           </div>
           <button
             onClick={() => setWarnings([])}
@@ -240,26 +381,31 @@ export default function EditorPage() {
         </div>
       )}
 
-      {/* 상태 메시지 */}
       {statusMsg && (
         <div className="fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded-lg text-sm shadow-lg z-50 animate-fade-in">
           {statusMsg}
         </div>
       )}
 
-      {/* 에디터 영역 (A4 스타일) */}
       <div className="flex-1 overflow-y-auto bg-gray-100 py-8">
-        <div className="max-w-4xl mx-auto bg-white shadow-md rounded min-h-[29.7cm]">
-          <EditorContent editor={editor} className="h-full" />
-        </div>
+        {layoutMode ? (
+          <div className="max-w-6xl mx-auto px-4">
+            <div className="bg-white shadow-md rounded overflow-hidden">
+              <LayoutEditor ref={layoutEditorRef} html={documentHtml} onChange={handleLayoutChange} />
+            </div>
+          </div>
+        ) : (
+          <div className="max-w-4xl mx-auto bg-white shadow-md rounded min-h-[29.7cm]">
+            <EditorContent editor={editor} className="h-full" />
+          </div>
+        )}
       </div>
 
-      {/* 하단 상태바 */}
       <div className="bg-white border-t border-gray-200 px-4 py-1 flex items-center gap-4 text-xs text-gray-400">
         {manifest && (
           <>
             <span>원본: {manifest.originalFileName}</span>
-            <span>포맷: {manifest.originalFormat.toUpperCase()}</span>
+            <span>형식: {manifest.originalFormat.toUpperCase()}</span>
             <span>생성: {new Date(manifest.created).toLocaleDateString('ko-KR')}</span>
             <span>수정: {new Date(manifest.modified).toLocaleDateString('ko-KR')}</span>
           </>
@@ -268,15 +414,4 @@ export default function EditorPage() {
       </div>
     </div>
   )
-}
-
-function base64ToBlob(base64: string, mimeType: string): Blob {
-  const byteChars = atob(base64)
-  const byteArrays: ArrayBuffer[] = []
-  for (let i = 0; i < byteChars.length; i += 512) {
-    const slice = byteChars.slice(i, i + 512)
-    const byteNumbers = new Array(slice.length).fill(0).map((_, j) => slice.charCodeAt(j))
-    byteArrays.push(new Uint8Array(byteNumbers).buffer as ArrayBuffer)
-  }
-  return new Blob(byteArrays, { type: mimeType })
 }

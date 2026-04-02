@@ -29,7 +29,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ParseApiR
     const file = formData.get('file') as File | null
 
     if (!file) {
-      return NextResponse.json({ success: false, error: '파일이 없습니다.' }, { status: 400 })
+      return NextResponse.json({ success: false, error: '업로드된 파일이 없습니다.' }, { status: 400 })
     }
 
     const fileName = file.name
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ParseApiR
             {
               success: false,
               error:
-                '구형 DOC 파일은 직접 변환이 어렵습니다. Microsoft Word에서 DOCX로 다시 저장 후 업로드해주세요.',
+                '구형 DOC 파일은 직접 변환이 어렵습니다. Microsoft Word에서 DOCX로 다시 저장한 뒤 다시 업로드해 주세요.',
             },
             { status: 422 }
           )
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ParseApiR
         html = result.html
         warnings.push(...result.warnings)
         if (result.isScanned) {
-          warnings.push(`총 ${result.pageCount}페이지의 스캔 PDF입니다.`)
+          warnings.push(`총 ${result.pageCount}페이지의 스캔 PDF입니다. OCR 결과라 글자 위치가 일부 달라질 수 있습니다.`)
         }
         break
       }
@@ -85,7 +85,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<ParseApiR
       case 'webp': {
         const ext = fileName.split('.').pop()?.toLowerCase() ?? 'png'
         const mimeType = MIME_MAP[ext] ?? 'image/png'
+        console.log(`[parse] 이미지 OCR 시작: ${fileName} (${mimeType})`)
         const result = await parseImage(buffer, fileName, mimeType)
+        console.log(`[parse] OCR 완료. 경고: ${result.warnings.join(' | ')}`)
         html = result.html
         warnings.push(...result.warnings)
         break
@@ -107,7 +109,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ParseApiR
 
       case 'hwpx': {
         // HWPX는 XML 기반 ZIP — 기본 텍스트 추출
-        warnings.push('HWPX 파일: 기본 텍스트만 추출됩니다. 완전한 서식 지원은 추후 업데이트 예정입니다.')
+        warnings.push('HWPX 파일은 현재 기본 텍스트만 추출됩니다. 표, 이미지, 고급 서식은 일부 누락될 수 있습니다.')
         html = await parseHwpx(buffer)
         break
       }
@@ -126,7 +128,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ParseApiR
 
       default: {
         return NextResponse.json(
-          { success: false, error: `지원하지 않는 형식입니다: ${format}` },
+          { success: false, error: `지원하지 않는 파일 형식입니다: ${format}` },
           { status: 415 }
         )
       }
@@ -151,7 +153,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ParseApiR
   } catch (error) {
     console.error('[/api/parse] 에러:', error)
     return NextResponse.json(
-      { success: false, error: `파싱 중 오류가 발생했습니다: ${(error as Error).message}` },
+      { success: false, error: `파일 파싱 중 오류가 발생했습니다: ${(error as Error).message}` },
       { status: 500 }
     )
   }
@@ -202,7 +204,7 @@ async function parseHwpx(buffer: Buffer): Promise<string> {
 <style>body{font-family:'Malgun Gothic',sans-serif;font-size:11pt;line-height:1.7}p{margin:0.4em 0}</style>
 </head>
 <body>
-<p style="color:#f59e0b;font-size:0.85em">⚠️ HWPX 기본 텍스트 추출 — 서식은 복원되지 않습니다</p>
+<p style="color:#f59e0b;font-size:0.85em">HWPX 기본 텍스트 추출 결과입니다. 원본 서식은 완전히 복원되지 않을 수 있습니다.</p>
 ${paragraphs}
 </body>
 </html>`

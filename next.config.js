@@ -1,13 +1,25 @@
 /** @type {import('next').NextConfig} */
+
 const nextConfig = {
-  // puppeteer 등 서버사이드 전용 패키지를 클라이언트 번들에서 제외
   experimental: {
-    serverComponentsExternalPackages: ['puppeteer', 'pdf-parse', 'mammoth', 'sharp'],
+    // Next.js가 아래 패키지들의 코드를 건드리지 않고 순수 Node.js 환경에서 실행하게 합니다.
+    serverComponentsExternalPackages: [
+      'sharp', 
+      'tesseract.js', 
+      'puppeteer', 
+      'pdf-parse', 
+      'mammoth',
+      'canvas',
+      'pdfjs-dist' // 최신 PDF.js 보호 추가
+    ],
   },
 
   webpack: (config, { isServer }) => {
-    if (!isServer) {
-      // 클라이언트 번들에서 node-only 모듈 제거
+    if (isServer) {
+      const existing = Array.isArray(config.externals) ? config.externals : []
+      // 외부 모듈로 취급하도록 명시적 추가
+      config.externals = [...existing, 'tesseract.js', 'canvas', 'pdfjs-dist'] 
+    } else {
       config.resolve.fallback = {
         ...config.resolve.fallback,
         fs: false,

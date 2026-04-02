@@ -9,7 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { readSKKFBuffer } from '@/lib/skkf/reader'
-import { exportToPdf, wrapForPrint } from '@/lib/exporters/pdf'
+import { exportToPdf, prepareHtmlForPrint } from '@/lib/exporters/pdf'
 import { ExportApiResponse } from '@/lib/skkf/schema'
 
 export async function POST(request: NextRequest): Promise<NextResponse<ExportApiResponse>> {
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExportApi
 
     if (!skkfBase64) {
       return NextResponse.json(
-        { success: false, error: '.skkf 데이터가 없습니다.' },
+        { success: false, error: '.skkf 데이터가 없습니다. 먼저 문서를 저장한 뒤 다시 시도해 주세요.' },
         { status: 400 }
       )
     }
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExportApi
     const docTitle = title || manifest.title || '문서'
 
     // 2. 편집기 HTML을 인쇄용 HTML로 변환
-    const printHtml = wrapForPrint(html, docTitle)
+    const printHtml = prepareHtmlForPrint(html, docTitle)
 
     // 3. Puppeteer로 PDF 변환
     const pdfBuffer = await exportToPdf(printHtml, {
@@ -56,7 +56,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ExportApi
   } catch (error) {
     console.error('[/api/export] 에러:', error)
     return NextResponse.json(
-      { success: false, error: `PDF 변환 실패: ${(error as Error).message}` },
+      { success: false, error: `PDF 내보내기에 실패했습니다: ${(error as Error).message}` },
       { status: 500 }
     )
   }
