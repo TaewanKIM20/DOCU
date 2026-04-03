@@ -1,5 +1,5 @@
 {
-  "name": "skkf-platform",
+  "name": "docu-platform",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -30,6 +30,7 @@
     "mammoth": "^1.7.1",
     "marked": "^12.0.0",
     "next": "14.2.3",
+    "pdf-lib": "^1.17.1",
     "pdf-parse": "^1.1.1",
     "pdfjs-dist": "^4.10.38",
     "puppeteer": "^22.6.0",

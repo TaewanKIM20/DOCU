@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: '.skkf — Universal Document Platform',
-  description: 'DOCX, PDF, 이미지 등 모든 문서를 통일된 포맷으로 편집하고 PDF로 내보내기',
+  title: 'DOCU | Multi-format document editor',
+  description: 'Upload Word, PDF, image, text, and HWPX documents, reorder them, edit them in one workspace, and export them as a single PDF.',
 }
 
 export default function RootLayout({

@@ -1,7 +1,10 @@
 import puppeteer from 'puppeteer'
+import { PDFDocument } from 'pdf-lib'
+import { EDITOR_FONT_CSS_IMPORT } from '@/lib/editor-fonts'
 
 export interface PdfExportOptions {
   format?: 'A4' | 'A3' | 'Letter' | 'Legal'
+  preferCSSPageSize?: boolean
   margin?: {
     top?: string
     right?: string
@@ -36,7 +39,14 @@ export async function exportToPdf(
   html: string,
   options: PdfExportOptions = {}
 ): Promise<Buffer> {
-  const opts = { ...DEFAULT_OPTIONS, ...options }
+  const opts = {
+    ...DEFAULT_OPTIONS,
+    ...options,
+    margin: {
+      ...DEFAULT_OPTIONS.margin,
+      ...options.margin,
+    },
+  }
 
   const browser = await puppeteer.launch({
     headless: true,
@@ -57,12 +67,36 @@ export async function exportToPdf(
       displayHeaderFooter: opts.displayHeaderFooter,
       headerTemplate: opts.headerTemplate,
       footerTemplate: opts.footerTemplate,
+      preferCSSPageSize: opts.preferCSSPageSize,
     })
 
     return Buffer.from(pdfBuffer)
   } finally {
     await browser.close()
   }
+}
+
+export async function mergePdfBuffers(buffers: Buffer[]): Promise<Buffer> {
+  if (buffers.length === 0) {
+    throw new Error('병합할 PDF가 없습니다.')
+  }
+
+  if (buffers.length === 1) {
+    return buffers[0]
+  }
+
+  const merged = await PDFDocument.create()
+
+  for (const buffer of buffers) {
+    const document = await PDFDocument.load(buffer)
+    const pages = await merged.copyPages(document, document.getPageIndices())
+    for (const page of pages) {
+      merged.addPage(page)
+    }
+  }
+
+  const bytes = await merged.save()
+  return Buffer.from(bytes)
 }
 
 export function prepareHtmlForPrint(html: string, title: string): string {
@@ -80,12 +114,12 @@ export function wrapForPrint(editorHtml: string, title: string): string {
 <meta charset="UTF-8">
 <title>${escapeHtml(title)}</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');
+  ${EDITOR_FONT_CSS_IMPORT}
 
   * { box-sizing: border-box; }
 
   body {
-    font-family: 'Noto Sans KR', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+    font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
     font-size: 11pt;
     line-height: 1.8;
     color: #111;
@@ -154,6 +188,35 @@ ${editorHtml}
 
 function injectPrintStyles(html: string, title: string): string {
   const safeTitle = escapeHtml(title)
+  const layoutPageSize = extractLayoutPageSize(html)
+  const layoutPrintPatch = layoutPageSize
+    ? `
+  @page {
+    size: ${layoutPageSize.width}px ${layoutPageSize.height}px;
+    margin: 0;
+  }
+
+  html,
+  body {
+    width: ${layoutPageSize.width}px;
+    min-width: ${layoutPageSize.width}px;
+  }
+
+  body[data-layout-document="true"] {
+    padding: 0 !important;
+  }
+
+  .pdf-page {
+    margin: 0 !important;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .pdf-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }`
+    : ''
   const printPatch = `
 <style data-skkf-print-patch>
   * {
@@ -181,6 +244,7 @@ function injectPrintStyles(html: string, title: string): string {
   .pdf-page {
     box-shadow: none !important;
   }
+  ${layoutPrintPatch}
 </style>`
 
   let nextHtml = html
@@ -209,4 +273,24 @@ function injectPrintStyles(html: string, title: string): string {
 
 function escapeHtml(str: string): string {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+function extractLayoutPageSize(html: string) {
+  const match = html.match(
+    /class="pdf-page[^"]*"[\s\S]*?style="[^"]*width:\s*([\d.]+)px;[^"]*height:\s*([\d.]+)px;/i
+  )
+
+  if (!match) return null
+
+  const width = parseFloat(match[1])
+  const height = parseFloat(match[2])
+
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    return null
+  }
+
+  return {
+    width: Math.round(width * 100) / 100,
+    height: Math.round(height * 100) / 100,
+  }
 }

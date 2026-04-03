@@ -94,6 +94,7 @@ export interface ParseApiResponse {
   /** base64 인코딩된 .skkf ZIP 바이너리 */
   skkfBase64?: string
   manifest?: SKKFManifest
+  html?: string
   error?: string
   warnings?: string[]
 }

@@ -1,142 +1,128 @@
 'use client'
 
-/**
- * UploadZone — 파일 업로드 드래그앤드롭 영역
- */
-
-import { useCallback, useState, useRef } from 'react'
+import { useCallback, useRef, useState } from 'react'
 
 interface UploadZoneProps {
-  onFileSelected: (file: File) => void
-  isLoading: boolean
+  onFilesSelected: (files: File[]) => void
+  isBusy: boolean
+  fileCount: number
 }
 
-const ACCEPTED_FORMATS = [
-  { ext: 'DOCX', desc: 'Word 문서', color: 'blue' },
-  { ext: 'DOC', desc: 'Word 97-2003', color: 'blue' },
-  { ext: 'PDF', desc: 'PDF 문서', color: 'red' },
-  { ext: 'PNG', desc: '이미지', color: 'green' },
-  { ext: 'JPG', desc: '이미지', color: 'green' },
-  { ext: 'WEBP', desc: '이미지', color: 'green' },
-  { ext: 'TXT', desc: '텍스트', color: 'gray' },
-  { ext: 'MD', desc: '마크다운', color: 'purple' },
-  { ext: 'HWPX', desc: '한글 파일', color: 'teal' },
-  { ext: 'SKKF', desc: 'SKKF 파일', color: 'indigo' },
-]
+const ACCEPT = '.docx,.doc,.pdf,.png,.jpg,.jpeg,.webp,.txt,.md,.hwpx,.skkf'
 
-export default function UploadZone({ onFileSelected, isLoading }: UploadZoneProps) {
+const SUPPORTED_FORMATS = ['docx', 'doc', 'pdf', 'png', 'jpg', 'jpeg', 'webp', 'txt', 'md', 'hwpx', 'skkf']
+
+export default function UploadZone({ onFilesSelected, isBusy, fileCount }: UploadZoneProps) {
+  const inputRef = useRef<HTMLInputElement>(null)
   const [isDragOver, setIsDragOver] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const handleFile = useCallback(
-    (file: File) => {
-      if (file) onFileSelected(file)
+  const emitFiles = useCallback(
+    (list: FileList | null) => {
+      if (!list || list.length === 0) return
+      onFilesSelected(Array.from(list))
     },
-    [onFileSelected]
+    [onFilesSelected]
   )
-
-  const onDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault()
-      setIsDragOver(false)
-      const file = e.dataTransfer.files[0]
-      if (file) handleFile(file)
-    },
-    [handleFile]
-  )
-
-  const onDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    setIsDragOver(true)
-  }, [])
-
-  const onDragLeave = useCallback(() => setIsDragOver(false), [])
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-8">
-      {/* 로고 */}
-      <div className="mb-8 text-center">
-        <div className="text-5xl font-black text-indigo-600 tracking-tight">.skkf</div>
-        <div className="text-lg text-gray-500 mt-2">Universal Document Platform</div>
-        <div className="text-sm text-gray-400 mt-1">모든 문서를 하나의 포맷으로</div>
-      </div>
-
-      {/* 드래그앤드롭 영역 */}
-      <div
-        onDrop={onDrop}
-        onDragOver={onDragOver}
-        onDragLeave={onDragLeave}
-        onClick={() => !isLoading && fileInputRef.current?.click()}
-        className={`
-          w-full max-w-xl border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer
-          transition-all duration-200 select-none
-          ${isDragOver
-            ? 'border-indigo-500 bg-indigo-50 scale-[1.02]'
-            : 'border-gray-300 bg-white hover:border-indigo-400 hover:bg-indigo-50/30'
-          }
-          ${isLoading ? 'opacity-60 cursor-not-allowed' : ''}
-        `}
-      >
-        {isLoading ? (
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-            <div className="text-gray-600 font-medium">파일 변환 중...</div>
-            <div className="text-gray-400 text-sm">잠시만 기다려주세요</div>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-3">
-            <div className="text-5xl">📂</div>
-            <div className="text-gray-700 font-semibold text-lg">
-              {isDragOver ? '놓아주세요!' : '파일을 드래그하거나 클릭하여 업로드'}
-            </div>
-            <div className="text-gray-400 text-sm">
-              변환하고 싶은 문서를 올려주세요
-            </div>
-          </div>
-        )}
-      </div>
-
-      <input
-        ref={fileInputRef}
-        type="file"
-        className="hidden"
-        accept=".docx,.doc,.pdf,.png,.jpg,.jpeg,.webp,.txt,.md,.hwpx,.skkf"
-        onChange={(e) => {
-          const file = e.target.files?.[0]
-          if (file) handleFile(file)
-        }}
-      />
-
-      {/* 지원 포맷 뱃지 */}
-      <div className="mt-8 w-full max-w-xl">
-        <div className="text-xs text-gray-400 text-center mb-3 uppercase tracking-wider">지원 형식</div>
-        <div className="flex flex-wrap gap-2 justify-center">
-          {ACCEPTED_FORMATS.map(({ ext, desc, color }) => (
-            <span
-              key={ext}
-              title={desc}
-              className={`
-                px-2.5 py-1 rounded-full text-xs font-semibold
-                ${color === 'blue' ? 'bg-blue-100 text-blue-700' : ''}
-                ${color === 'red' ? 'bg-red-100 text-red-700' : ''}
-                ${color === 'green' ? 'bg-green-100 text-green-700' : ''}
-                ${color === 'gray' ? 'bg-gray-100 text-gray-600' : ''}
-                ${color === 'purple' ? 'bg-purple-100 text-purple-700' : ''}
-                ${color === 'teal' ? 'bg-teal-100 text-teal-700' : ''}
-                ${color === 'indigo' ? 'bg-indigo-100 text-indigo-700' : ''}
-              `}
-            >
-              .{ext.toLowerCase()}
-            </span>
-          ))}
+    <section className="docu-upload-panel">
+      <div className="docu-upload-header">
+        <div>
+          <p className="docu-section-label">업로드 영역</p>
+          <h2 className="mt-2 text-[1.45rem] font-semibold tracking-tight text-slate-950">문서를 여기에 올리세요</h2>
+          <p className="mt-2 max-w-xl text-sm leading-6 text-slate-600">
+            여러 파일을 한 번에 추가할 수 있습니다. 업로드가 끝나면 오른쪽에서 순서를 정리하고 그대로 편집기로 넘어갑니다.
+          </p>
+        </div>
+        <div className="docu-upload-counter">
+          <span>현재 큐</span>
+          <strong>{fileCount}</strong>
         </div>
       </div>
 
-      {/* 안내 문구 */}
-      <div className="mt-6 text-xs text-gray-400 text-center max-w-sm leading-relaxed">
-        업로드된 파일은 서버에서 변환 후 .skkf 포맷으로 편집 가능합니다.
-        편집 완료 후 .skkf로 저장하거나 PDF로 내보낼 수 있습니다.
+      <div className="p-5 pt-0 sm:p-6 sm:pt-0">
+        <div
+          onClick={() => !isBusy && inputRef.current?.click()}
+          onDragOver={(event) => {
+            event.preventDefault()
+            setIsDragOver(true)
+          }}
+          onDragLeave={() => setIsDragOver(false)}
+          onDrop={(event) => {
+            event.preventDefault()
+            setIsDragOver(false)
+            if (isBusy) return
+            emitFiles(event.dataTransfer.files)
+          }}
+          className={`docu-upload-surface ${isDragOver ? 'docu-upload-surface-active' : ''} ${isBusy ? 'docu-upload-surface-busy' : ''}`}
+        >
+          <div className="docu-upload-sheet docu-upload-sheet-a" />
+          <div className="docu-upload-sheet docu-upload-sheet-b" />
+
+          <div className="docu-upload-mark">{isBusy ? <span className="docu-spinner" aria-hidden="true" /> : '+'}</div>
+          <div className="mt-5 text-[1.75rem] font-semibold tracking-tight text-slate-950 sm:text-[2rem]">
+            {isBusy
+              ? '문서를 편집 세션으로 준비하고 있습니다.'
+              : isDragOver
+                ? '지금 놓으면 바로 문서 큐에 추가됩니다'
+                : '파일을 드래그하거나 클릭해서 추가하세요'}
+          </div>
+          <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-slate-600 sm:text-[0.98rem]">
+            Word, PDF, 이미지, 텍스트, HWPX를 지원합니다. 한 번에 여러 개를 넣고, 이후 순서와 편집 흐름을 그대로 이어갈 수 있습니다.
+          </p>
+
+          <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation()
+                if (!isBusy) inputRef.current?.click()
+              }}
+              disabled={isBusy}
+              className="docu-button docu-button-primary min-w-[138px]"
+            >
+              파일 선택
+            </button>
+            <span className="docu-upload-hint">
+              {isBusy ? (
+                <>
+                  <span className="docu-loading-dots" aria-hidden="true">
+                    <span />
+                    <span />
+                    <span />
+                  </span>
+                  문서를 준비 중입니다
+                </>
+              ) : (
+                '드래그 앤 드롭 가능'
+              )}
+            </span>
+          </div>
+        </div>
+
+        <input
+          ref={inputRef}
+          type="file"
+          multiple
+          accept={ACCEPT}
+          className="hidden"
+          onChange={(event) => {
+            emitFiles(event.target.files)
+            event.currentTarget.value = ''
+          }}
+        />
+
+        <div className="mt-5">
+          <div className="text-xs font-medium uppercase tracking-[0.14em] text-slate-500">지원 형식</div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {SUPPORTED_FORMATS.map((format) => (
+              <span key={format} className="docu-format-chip">
+                .{format}
+              </span>
+            ))}
+          </div>
+        </div>
       </div>
-    </div>
+    </section>
   )
 }

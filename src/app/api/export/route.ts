@@ -1,60 +1,114 @@
 /**
  * POST /api/export
  *
- * .skkf 파일의 HTML 내용을 PDF로 변환
- *
- * Request: { skkfBase64: string, title?: string, options?: PdfExportOptions }
- * Response: { success, pdfBase64 } | { success: false, error }
+ * Convert one or more SKKF/HTML documents into a merged downloadable PDF.
  */
 
 import { NextRequest, NextResponse } from 'next/server'
 import { readSKKFBuffer } from '@/lib/skkf/reader'
-import { exportToPdf, prepareHtmlForPrint } from '@/lib/exporters/pdf'
+import { exportToPdf, mergePdfBuffers, PdfExportOptions, prepareHtmlForPrint } from '@/lib/exporters/pdf'
 import { ExportApiResponse } from '@/lib/skkf/schema'
+
+interface ExportDocumentInput {
+  skkfBase64?: string
+  html?: string
+  title?: string
+}
+
+function buildPdfOptions(html: string, title: string, options?: any): PdfExportOptions {
+  const isLayoutDocument = /data-layout-document/i.test(html) || /class="pdf-page/i.test(html)
+
+  return isLayoutDocument
+    ? {
+        format: options?.format || 'A4',
+        preferCSSPageSize: true,
+        margin: options?.margin || {
+          top: '0',
+          right: '0',
+          bottom: '0',
+          left: '0',
+        },
+        printBackground: options?.printBackground ?? true,
+        displayHeaderFooter: options?.displayHeaderFooter ?? false,
+        headerTemplate: options?.headerTemplate,
+        footerTemplate: options?.footerTemplate,
+      }
+    : {
+        format: options?.format || 'A4',
+        margin: options?.margin || {
+          top: '20mm',
+          right: '20mm',
+          bottom: '25mm',
+          left: '20mm',
+        },
+        printBackground: options?.printBackground ?? true,
+        displayHeaderFooter: options?.displayHeaderFooter ?? true,
+        headerTemplate:
+          options?.headerTemplate ||
+          `<div style="font-size:9px;color:#aaa;width:100%;text-align:right;padding:0 20mm;">${title}</div>`,
+        footerTemplate:
+          options?.footerTemplate ||
+          `<div style="font-size:9px;color:#aaa;width:100%;text-align:center;padding-bottom:10px;">
+            <span class="pageNumber"></span> / <span class="totalPages"></span>
+          </div>`,
+      }
+}
+
+async function resolveDocumentPayload(document: ExportDocumentInput) {
+  if (document.html) {
+    return {
+      title: document.title || '문서',
+      html: document.html,
+    }
+  }
+
+  if (!document.skkfBase64) {
+    throw new Error('PDF 내보내기용 문서 데이터가 없습니다.')
+  }
+
+  const skkfBuffer = Buffer.from(document.skkfBase64, 'base64')
+  const { manifest, html } = await readSKKFBuffer(skkfBuffer)
+  return {
+    title: document.title || manifest.title || '문서',
+    html,
+  }
+}
 
 export async function POST(request: NextRequest): Promise<NextResponse<ExportApiResponse>> {
   try {
     const body = await request.json()
-    const { skkfBase64, title, options } = body
+    const { skkfBase64, html, title, options } = body
 
-    if (!skkfBase64) {
+    const requestedDocuments: ExportDocumentInput[] = Array.isArray(body.documents)
+      ? body.documents
+      : [{ skkfBase64, html, title }]
+
+    const validDocuments = requestedDocuments.filter(
+      (document) => Boolean(document?.html) || Boolean(document?.skkfBase64)
+    )
+
+    if (validDocuments.length === 0) {
       return NextResponse.json(
-        { success: false, error: '.skkf 데이터가 없습니다. 먼저 문서를 저장한 뒤 다시 시도해 주세요.' },
+        { success: false, error: '내보낼 문서가 없습니다. 다시 시도해주세요.' },
         { status: 400 }
       )
     }
 
-    // 1. .skkf 파일 읽기
-    const skkfBuffer = Buffer.from(skkfBase64, 'base64')
-    const { manifest, html } = await readSKKFBuffer(skkfBuffer)
+    const pdfBuffers: Buffer[] = []
 
-    const docTitle = title || manifest.title || '문서'
+    for (const document of validDocuments) {
+      const resolved = await resolveDocumentPayload(document)
+      const printHtml = prepareHtmlForPrint(resolved.html, resolved.title)
+      const pdfOptions = buildPdfOptions(resolved.html, resolved.title, options)
+      pdfBuffers.push(await exportToPdf(printHtml, pdfOptions))
+    }
 
-    // 2. 편집기 HTML을 인쇄용 HTML로 변환
-    const printHtml = prepareHtmlForPrint(html, docTitle)
-
-    // 3. Puppeteer로 PDF 변환
-    const pdfBuffer = await exportToPdf(printHtml, {
-      format: options?.format || 'A4',
-      margin: options?.margin || {
-        top: '20mm',
-        right: '20mm',
-        bottom: '25mm',
-        left: '20mm',
-      },
-      printBackground: true,
-      displayHeaderFooter: true,
-      headerTemplate: `<div style="font-size:9px;color:#aaa;width:100%;text-align:right;padding:0 20mm;">${docTitle}</div>`,
-      footerTemplate: `<div style="font-size:9px;color:#aaa;width:100%;text-align:center;padding-bottom:10px;">
-        <span class="pageNumber"></span> / <span class="totalPages"></span>
-      </div>`,
-    })
-
-    const pdfBase64 = pdfBuffer.toString('base64')
+    const mergedPdfBuffer = await mergePdfBuffers(pdfBuffers)
+    const pdfBase64 = mergedPdfBuffer.toString('base64')
 
     return NextResponse.json({ success: true, pdfBase64 })
   } catch (error) {
-    console.error('[/api/export] 에러:', error)
+    console.error('[/api/export] error:', error)
     return NextResponse.json(
       { success: false, error: `PDF 내보내기에 실패했습니다: ${(error as Error).message}` },
       { status: 500 }

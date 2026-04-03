@@ -122,6 +122,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ParseApiR
           success: true,
           skkfBase64: buffer.toString('base64'),
           manifest: existing.manifest,
+          html: existing.html,
           warnings: ['기존 .skkf 파일을 불러왔습니다.'],
         })
       }
@@ -149,7 +150,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ParseApiR
     const skkfBuffer = await createSKKFBuffer({ html, manifest, warnings })
     const skkfBase64 = skkfBuffer.toString('base64')
 
-    return NextResponse.json({ success: true, skkfBase64, manifest, warnings })
+    return NextResponse.json({ success: true, skkfBase64, manifest, html, warnings })
   } catch (error) {
     console.error('[/api/parse] 에러:', error)
     return NextResponse.json(
