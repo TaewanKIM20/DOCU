@@ -10,11 +10,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { detectFormat } from '@/lib/skkf/reader'
 import { createSKKFBuffer } from '@/lib/skkf/writer'
-import { parseDocx } from '@/lib/parsers/docx'
-import { parsePdf } from '@/lib/parsers/pdf'
-import { parseImage } from '@/lib/parsers/image'
-import { parseTxt, parseMd } from '@/lib/parsers/text'
 import { SKKFManifest, ParseApiResponse } from '@/lib/skkf/schema'
+
+export const runtime = 'nodejs'
+export const maxDuration = 60
 
 const MIME_MAP: Record<string, string> = {
   png: 'image/png',
@@ -44,6 +43,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ParseApiR
     // 2. 포맷별 파서 실행
     switch (format) {
       case 'docx': {
+        const { parseDocx } = await import('@/lib/parsers/docx')
         const result = await parseDocx(buffer)
         html = result.html
         warnings.push(...result.warnings)
@@ -53,6 +53,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ParseApiR
       case 'doc': {
         // 구형 DOC (OLE2) — mammoth로 시도, 실패하면 안내
         try {
+          const { parseDocx } = await import('@/lib/parsers/docx')
           const result = await parseDocx(buffer)
           html = result.html
           warnings.push('구형 DOC 포맷입니다. 일부 서식이 손실될 수 있습니다.')
@@ -71,6 +72,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ParseApiR
       }
 
       case 'pdf': {
+        const { parsePdf } = await import('@/lib/parsers/pdf')
         const result = await parsePdf(buffer)
         html = result.html
         warnings.push(...result.warnings)
@@ -83,6 +85,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ParseApiR
       case 'png':
       case 'jpg':
       case 'webp': {
+        const { parseImage } = await import('@/lib/parsers/image')
         const ext = fileName.split('.').pop()?.toLowerCase() ?? 'png'
         const mimeType = MIME_MAP[ext] ?? 'image/png'
         console.log(`[parse] 이미지 OCR 시작: ${fileName} (${mimeType})`)
@@ -94,6 +97,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ParseApiR
       }
 
       case 'txt': {
+        const { parseTxt } = await import('@/lib/parsers/text')
         const result = await parseTxt(buffer)
         html = result.html
         warnings.push(...result.warnings)
@@ -101,6 +105,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ParseApiR
       }
 
       case 'md': {
+        const { parseMd } = await import('@/lib/parsers/text')
         const result = await parseMd(buffer)
         html = result.html
         warnings.push(...result.warnings)

@@ -2,9 +2,8 @@
 import path from 'path'
 import os from 'os'
 import { pathToFileURL } from 'url'
+import * as CanvasModule from 'canvas'
 import { EDITOR_FONT_CSS_IMPORT } from '@/lib/editor-fonts'
-
-const CanvasModule = eval('require')('canvas')
 const TEXT_ASCENT_CACHE = new Map<string, number>()
 
 const TESSDATA_CACHE = path.join(os.homedir(), '.skkf-tessdata')

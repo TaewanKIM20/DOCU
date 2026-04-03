@@ -5,14 +5,13 @@ import { useCallback, useRef, useState } from 'react'
 interface UploadZoneProps {
   onFilesSelected: (files: File[]) => void
   isBusy: boolean
-  fileCount: number
 }
 
 const ACCEPT = '.docx,.doc,.pdf,.png,.jpg,.jpeg,.webp,.txt,.md,.hwpx,.skkf'
 
 const SUPPORTED_FORMATS = ['docx', 'doc', 'pdf', 'png', 'jpg', 'jpeg', 'webp', 'txt', 'md', 'hwpx', 'skkf']
 
-export default function UploadZone({ onFilesSelected, isBusy, fileCount }: UploadZoneProps) {
+export default function UploadZone({ onFilesSelected, isBusy }: UploadZoneProps) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [isDragOver, setIsDragOver] = useState(false)
 
@@ -34,10 +33,6 @@ export default function UploadZone({ onFilesSelected, isBusy, fileCount }: Uploa
             여러 파일을 한 번에 추가할 수 있습니다. 업로드가 끝나면 오른쪽에서 순서를 정리하고 그대로 편집기로 넘어갑니다.
           </p>
         </div>
-        <div className="docu-upload-counter">
-          <span>현재 큐</span>
-          <strong>{fileCount}</strong>
-        </div>
       </div>
 
       <div className="p-5 pt-0 sm:p-6 sm:pt-0">
@@ -56,10 +51,18 @@ export default function UploadZone({ onFilesSelected, isBusy, fileCount }: Uploa
           }}
           className={`docu-upload-surface ${isDragOver ? 'docu-upload-surface-active' : ''} ${isBusy ? 'docu-upload-surface-busy' : ''}`}
         >
-          <div className="docu-upload-sheet docu-upload-sheet-a" />
-          <div className="docu-upload-sheet docu-upload-sheet-b" />
+          <div className="docu-upload-mark" aria-hidden="true">
+            {isBusy ? (
+              <span className="docu-loader-orbit">
+                <span className="docu-loader-ring docu-loader-ring-a" />
+                <span className="docu-loader-ring docu-loader-ring-b" />
+                <span className="docu-loader-core" />
+              </span>
+            ) : (
+              '+'
+            )}
+          </div>
 
-          <div className="docu-upload-mark">{isBusy ? <span className="docu-spinner" aria-hidden="true" /> : '+'}</div>
           <div className="mt-5 text-[1.75rem] font-semibold tracking-tight text-slate-950 sm:text-[2rem]">
             {isBusy
               ? '문서를 편집 세션으로 준비하고 있습니다.'

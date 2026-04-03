@@ -365,6 +365,118 @@ body {
   box-shadow: 0 16px 28px rgba(190, 24, 93, 0.08);
 }
 
+.docu-processing-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background:
+    radial-gradient(circle at 50% 30%, rgba(255, 255, 255, 0.42), transparent 24%),
+    rgba(238, 242, 248, 0.42);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+}
+
+.docu-processing-card {
+  width: min(100%, 760px);
+  padding: clamp(1.4rem, 3vw, 2.4rem);
+  border: 1px solid rgba(255, 255, 255, 0.62);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.48), rgba(255, 255, 255, 0.22));
+  text-align: center;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.82),
+    0 30px 80px rgba(71, 85, 105, 0.16);
+  backdrop-filter: blur(34px) saturate(175%);
+  -webkit-backdrop-filter: blur(34px) saturate(175%);
+}
+
+.docu-processing-loader {
+  position: relative;
+  width: 8.5rem;
+  height: 8.5rem;
+  margin: 0 auto 1.4rem;
+}
+
+.docu-processing-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 1.5px solid transparent;
+}
+
+.docu-processing-ring-a {
+  border-top-color: rgba(15, 23, 42, 0.9);
+  border-right-color: rgba(96, 165, 250, 0.48);
+  animation: docu-orbit 1.6s linear infinite;
+}
+
+.docu-processing-ring-b {
+  inset: 0.8rem;
+  border-bottom-color: rgba(30, 41, 59, 0.72);
+  border-left-color: rgba(244, 114, 182, 0.34);
+  animation: docu-orbit 1.15s linear infinite reverse;
+}
+
+.docu-processing-ring-c {
+  inset: 1.7rem;
+  border-top-color: rgba(15, 23, 42, 0.44);
+  border-right-color: rgba(134, 239, 172, 0.3);
+  animation: docu-orbit 2.1s linear infinite;
+}
+
+.docu-processing-core {
+  position: absolute;
+  inset: 2.55rem;
+  border-radius: 9999px;
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.24)),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.14));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 16px 36px rgba(71, 85, 105, 0.16);
+  animation: docu-float 2.4s ease-in-out infinite;
+}
+
+.docu-processing-progress {
+  margin-top: 1.5rem;
+}
+
+.docu-processing-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.7rem;
+  font-size: 0.9rem;
+  color: rgba(71, 85, 105, 0.9);
+}
+
+.docu-processing-progress-head strong {
+  font-size: 1rem;
+  color: #0f172a;
+}
+
+.docu-processing-bar {
+  position: relative;
+  height: 0.68rem;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.52);
+  background: rgba(255, 255, 255, 0.38);
+}
+
+.docu-processing-bar span {
+  display: block;
+  height: 100%;
+  background:
+    linear-gradient(90deg, rgba(125, 211, 252, 0.72), rgba(255, 255, 255, 0.78), rgba(244, 114, 182, 0.62));
+  box-shadow: 0 0 18px rgba(255, 255, 255, 0.54);
+  animation: docu-progress-sheen 1.4s linear infinite;
+}
+
 .docu-home-main-grid {
   display: grid;
   gap: clamp(1rem, 1.4vw, 1.5rem);
@@ -373,6 +485,8 @@ body {
 }
 
 .docu-button {
+  position: relative;
+  overflow: hidden;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -397,12 +511,32 @@ body {
   -webkit-backdrop-filter: blur(22px) saturate(160%);
 }
 
+.docu-button::before {
+  content: '';
+  position: absolute;
+  inset: -1px auto -1px -42%;
+  width: 34%;
+  transform: skewX(-20deg);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  opacity: 0;
+  transition:
+    transform 320ms ease,
+    opacity 220ms ease;
+  pointer-events: none;
+}
+
 .docu-button:hover:not(:disabled) {
   border-color: rgba(125, 134, 158, 0.36);
   background: rgba(255, 255, 255, 0.72);
+  transform: translateY(-1px);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.88),
     0 14px 28px rgba(88, 76, 132, 0.12);
+}
+
+.docu-button:hover:not(:disabled)::before {
+  opacity: 1;
+  transform: translateX(360%) skewX(-20deg);
 }
 
 .docu-button:disabled {
@@ -424,6 +558,9 @@ body {
 .docu-button-primary:hover:not(:disabled) {
   background: linear-gradient(135deg, rgba(30, 41, 59, 0.98), rgba(51, 65, 85, 0.92));
   border-color: rgba(30, 41, 59, 0.94);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 18px 36px rgba(30, 41, 59, 0.24);
 }
 
 .docu-button-dark {
@@ -469,6 +606,12 @@ body {
 
 .docu-list-row:hover {
   background: rgba(255, 255, 255, 0.42);
+}
+
+.docu-list-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.5rem;
 }
 
 .docu-list-index {
@@ -522,31 +665,6 @@ body {
   padding: 1.35rem 1.4rem 1.1rem;
 }
 
-.docu-upload-counter {
-  min-width: 88px;
-  padding: 0.85rem 1rem;
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.52), rgba(255, 255, 255, 0.18));
-  text-align: right;
-  backdrop-filter: blur(18px);
-}
-
-.docu-upload-counter span {
-  display: block;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: rgba(100, 116, 139, 0.8);
-}
-
-.docu-upload-counter strong {
-  display: block;
-  margin-top: 0.45rem;
-  font-size: 1.8rem;
-  color: #0f172a;
-}
-
 .docu-upload-surface {
   position: relative;
   overflow: hidden;
@@ -587,34 +705,6 @@ body {
     0 34px 70px rgba(86, 76, 124, 0.16);
 }
 
-.docu-upload-sheet {
-  position: absolute;
-  border: 1px solid rgba(255, 255, 255, 0.52);
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.08));
-  backdrop-filter: blur(36px) saturate(170%);
-  -webkit-backdrop-filter: blur(36px) saturate(170%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.68),
-    0 20px 48px rgba(86, 76, 124, 0.1);
-  pointer-events: none;
-}
-
-.docu-upload-sheet-a {
-  top: 1.25rem;
-  right: 2rem;
-  width: 10rem;
-  height: 7.5rem;
-  transform: rotate(10deg);
-}
-
-.docu-upload-sheet-b {
-  right: 5.75rem;
-  top: 3rem;
-  width: 10rem;
-  height: 7.5rem;
-  transform: rotate(-8deg);
-}
-
 .docu-upload-mark {
   display: inline-flex;
   align-items: center;
@@ -635,13 +725,42 @@ body {
   -webkit-backdrop-filter: blur(24px) saturate(175%);
 }
 
-.docu-spinner {
-  width: 1rem;
-  height: 1rem;
+.docu-loader-orbit {
+  position: relative;
+  display: inline-flex;
+  width: 2.25rem;
+  height: 2.25rem;
+  align-items: center;
+  justify-content: center;
+}
+
+.docu-loader-ring {
+  position: absolute;
+  inset: 0;
   border-radius: 9999px;
-  border: 1.5px solid rgba(255, 255, 255, 0.3);
-  border-top-color: currentColor;
-  animation: docu-spin 0.9s linear infinite;
+  border: 1.5px solid transparent;
+}
+
+.docu-loader-ring-a {
+  border-top-color: rgba(15, 23, 42, 0.88);
+  border-right-color: rgba(148, 163, 184, 0.48);
+  animation: docu-orbit 1.2s linear infinite;
+}
+
+.docu-loader-ring-b {
+  inset: 0.3rem;
+  border-bottom-color: rgba(15, 23, 42, 0.64);
+  border-left-color: rgba(148, 163, 184, 0.42);
+  animation: docu-orbit 0.95s linear infinite reverse;
+}
+
+.docu-loader-core {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 9999px;
+  background: rgba(15, 23, 42, 0.78);
+  box-shadow: 0 0 0 0.35rem rgba(255, 255, 255, 0.34);
+  animation: docu-pulse 1.4s ease-in-out infinite;
 }
 
 .docu-upload-hint {
@@ -1008,6 +1127,46 @@ body {
   }
 }
 
+@keyframes docu-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes docu-pulse {
+  0%,
+  100% {
+    transform: scale(0.88);
+    opacity: 0.72;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes docu-float {
+  0%,
+  100% {
+    transform: translateY(0) scale(0.96);
+  }
+  50% {
+    transform: translateY(-4px) scale(1);
+  }
+}
+
+@keyframes docu-progress-sheen {
+  0% {
+    filter: saturate(1);
+  }
+  50% {
+    filter: saturate(1.18);
+  }
+  100% {
+    filter: saturate(1);
+  }
+}
+
 @keyframes docu-breathe {
   0%,
   80%,
@@ -1090,6 +1249,17 @@ body {
     padding: 0.75rem;
   }
 
+  .docu-shell-bar,
+  .docu-queue-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .docu-shell-bar .docu-button,
+  .docu-queue-header .docu-button {
+    width: 100%;
+  }
+
   .docu-page-content,
   .docu-editor-stage {
     width: calc(100% - 1rem);
@@ -1099,9 +1269,105 @@ body {
     grid-template-columns: 1fr;
   }
 
-  .docu-upload-sheet-a,
-  .docu-upload-sheet-b {
-    display: none;
+  .docu-home-hero-grid {
+    gap: 1.5rem;
+    min-height: auto;
+  }
+
+  .docu-home-copy {
+    padding-top: 0;
+  }
+
+  .docu-home-title {
+    max-width: none;
+    font-size: clamp(2.55rem, 11vw, 3.6rem);
+    line-height: 0.98;
+  }
+
+  .docu-home-lead {
+    margin-top: 1rem;
+    font-size: 0.95rem;
+    line-height: 1.75;
+  }
+
+  .docu-home-flow {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+    margin-top: 1.4rem;
+  }
+
+  .docu-home-flow-item {
+    min-width: 0;
+    padding: 0.85rem 0.9rem;
+  }
+
+  .docu-home-art {
+    min-height: 240px;
+  }
+
+  .docu-home-sheet {
+    width: min(72vw, 280px);
+  }
+
+  .docu-home-sheet-back {
+    right: 0;
+  }
+
+  .docu-home-sheet-mid {
+    right: 15%;
+  }
+
+  .docu-home-sheet-front {
+    right: 6%;
+  }
+
+  .docu-upload-surface {
+    min-height: 300px;
+    padding: 1.6rem 1rem;
+  }
+
+  .docu-upload-mark {
+    width: 3.45rem;
+    height: 3.45rem;
+  }
+
+  .docu-processing-overlay {
+    padding: 0.9rem;
+  }
+
+  .docu-processing-card {
+    padding: 1.2rem 1rem;
+  }
+
+  .docu-processing-loader {
+    width: 6.8rem;
+    height: 6.8rem;
+    margin-bottom: 1rem;
+  }
+
+  .docu-processing-progress-head {
+    font-size: 0.82rem;
+  }
+
+  .docu-list-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.8rem;
+  }
+
+  .docu-list-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .docu-list-actions .docu-button {
+    flex: 1 1 calc(33.333% - 0.4rem);
+    min-width: calc(33.333% - 0.4rem);
+  }
+
+  .docu-queue-empty {
+    padding: 1.8rem 1rem 2.1rem;
   }
 
   .ProseMirror {

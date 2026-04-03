@@ -59,8 +59,12 @@ export default function HomePage() {
     setHasSavedSession(Boolean(sessionStorage.getItem(EDITOR_SESSION_STORAGE_KEY)))
   }, [])
 
-  const queuedCount = queue.length
   const readyCount = useMemo(() => queue.filter((item) => item.status !== 'error').length, [queue])
+  const completedCount = useMemo(
+    () => queue.filter((item) => item.status === 'done' || item.status === 'error').length,
+    [queue]
+  )
+  const processingProgress = queue.length > 0 ? Math.max(10, Math.round((completedCount / queue.length) * 100)) : 0
 
   const reorderQueue = useCallback((sourceId: string, targetId: string) => {
     setQueue((current) => {
@@ -100,71 +104,107 @@ export default function HomePage() {
     setIsProcessing(true)
     setError('')
 
-    const documents: EditorSessionDocument[] = []
-    let failedCount = 0
+    try {
+      const documents: EditorSessionDocument[] = []
+      let failedCount = 0
 
-    for (const item of queue) {
-      updateQueueItem(item.id, { status: 'processing', error: undefined })
+      for (const item of queue) {
+        updateQueueItem(item.id, { status: 'processing', error: undefined })
 
-      try {
-        const formData = new FormData()
-        formData.append('file', item.file)
+        try {
+          const formData = new FormData()
+          formData.append('file', item.file)
 
-        const response = await fetch('/api/parse', {
-          method: 'POST',
-          body: formData,
-        })
+          const response = await fetch('/api/parse', {
+            method: 'POST',
+            body: formData,
+          })
 
-        const data = (await response.json()) as ParseApiResponse
-        if (!response.ok || !data.success || !data.skkfBase64 || !data.manifest || !data.html) {
-          throw new Error(data.error || `${item.file.name} 파일 변환에 실패했습니다.`)
+          const data = (await response.json()) as ParseApiResponse
+          if (!response.ok || !data.success || !data.skkfBase64 || !data.manifest || !data.html) {
+            throw new Error(data.error || `${item.file.name} 파일 변환에 실패했습니다.`)
+          }
+
+          documents.push({
+            id: crypto.randomUUID(),
+            skkfBase64: data.skkfBase64,
+            html: data.html,
+            manifest: data.manifest,
+            warnings: data.warnings || [],
+          })
+
+          updateQueueItem(item.id, { status: 'done' })
+        } catch (processingError) {
+          failedCount += 1
+          updateQueueItem(item.id, {
+            status: 'error',
+            error: processingError instanceof Error ? processingError.message : '문서 처리 중 오류가 발생했습니다.',
+          })
         }
-
-        documents.push({
-          id: crypto.randomUUID(),
-          skkfBase64: data.skkfBase64,
-          html: data.html,
-          manifest: data.manifest,
-          warnings: data.warnings || [],
-        })
-
-        updateQueueItem(item.id, { status: 'done' })
-      } catch (processingError) {
-        failedCount += 1
-        updateQueueItem(item.id, {
-          status: 'error',
-          error: processingError instanceof Error ? processingError.message : '문서 처리 중 오류가 발생했습니다.',
-        })
       }
+
+      if (documents.length === 0) {
+        setError('처리된 문서가 없습니다. 파일 형식과 상태를 다시 확인해 주세요.')
+        setIsProcessing(false)
+        return
+      }
+
+      clearLegacySingleDocumentKeys()
+      const session = createEditorSession(documents)
+      sessionStorage.setItem(EDITOR_SESSION_STORAGE_KEY, JSON.stringify(session))
+      setHasSavedSession(true)
+
+      if (failedCount > 0) {
+        setError(`${failedCount}개 문서는 처리하지 못했습니다. 성공한 문서만 편집기로 이동합니다.`)
+      }
+
+      router.push('/editor')
+    } catch (unexpectedError) {
+      setError(unexpectedError instanceof Error ? unexpectedError.message : '문서를 준비하는 중 오류가 발생했습니다.')
+      setIsProcessing(false)
     }
-
-    setIsProcessing(false)
-
-    if (documents.length === 0) {
-      setError('처리된 문서가 없습니다. 파일 형식과 상태를 다시 확인해 주세요.')
-      return
-    }
-
-    clearLegacySingleDocumentKeys()
-    const session = createEditorSession(documents)
-    sessionStorage.setItem(EDITOR_SESSION_STORAGE_KEY, JSON.stringify(session))
-    setHasSavedSession(true)
-
-    if (failedCount > 0) {
-      setError(`${failedCount}개 문서는 처리하지 못했습니다. 성공한 문서만 편집기로 이동합니다.`)
-    }
-
-    router.push('/editor')
   }, [clearLegacySingleDocumentKeys, queue, router, updateQueueItem])
 
   return (
     <main className="bg-docu-base min-h-screen">
+      {isProcessing && (
+        <div className="docu-processing-overlay" aria-live="polite" aria-busy="true">
+          <div className="docu-processing-card">
+            <div className="docu-processing-loader" aria-hidden="true">
+              <span className="docu-processing-ring docu-processing-ring-a" />
+              <span className="docu-processing-ring docu-processing-ring-b" />
+              <span className="docu-processing-ring docu-processing-ring-c" />
+              <span className="docu-processing-core" />
+            </div>
+            <div className="docu-section-label">세션 준비 중</div>
+            <h2 className="mt-3 text-[2rem] font-semibold tracking-tight text-slate-950 sm:text-[2.4rem]">
+              문서를 편집 가능한 상태로 정리하고 있습니다
+            </h2>
+            <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-slate-600 sm:text-base">
+              업로드한 파일을 순서대로 변환한 뒤, 다음 편집 화면으로 바로 이어집니다.
+            </p>
+
+            <div className="docu-processing-progress">
+              <div className="docu-processing-progress-head">
+                <strong>
+                  {completedCount} / {queue.length}
+                </strong>
+                <span>문서 처리됨</span>
+              </div>
+              <div className="docu-processing-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={processingProgress}>
+                <span style={{ width: `${processingProgress}%` }} />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <section className="docu-page-band docu-page-band-shell">
         <div className="docu-page-content">
           <header className="docu-shell-bar">
             <div>
               <div className="docu-brand-title">DOCU</div>
-              <p className="mt-1 text-sm text-slate-600">문서를 한 흐름으로 정리하고 편집하는 작업 공간</p>
+              <p className="mt-1 text-sm text-slate-600">문서를 하나의 흐름으로 정리하고 편집하는 작업 공간</p>
             </div>
             <div className="flex items-center gap-2">
               {hasSavedSession && (
@@ -239,7 +279,7 @@ export default function HomePage() {
           {error && <div className="docu-home-alert mt-6">{error}</div>}
 
           <div className="docu-home-main-grid mt-6">
-            <UploadZone onFilesSelected={handleFilesSelected} isBusy={isProcessing} fileCount={queuedCount} />
+            <UploadZone onFilesSelected={handleFilesSelected} isBusy={isProcessing} />
 
             <section className="docu-queue-panel">
               <div className="docu-queue-header">
@@ -256,14 +296,7 @@ export default function HomePage() {
                   disabled={isProcessing || readyCount === 0}
                   className="docu-button docu-button-primary min-w-[170px]"
                 >
-                  {isProcessing ? (
-                    <>
-                      <span className="docu-spinner" aria-hidden="true" />
-                      편집 준비 중
-                    </>
-                  ) : (
-                    `편집 시작${readyCount > 0 ? ` (${readyCount})` : ''}`
-                  )}
+                  편집 시작{readyCount > 0 ? ` (${readyCount})` : ''}
                 </button>
               </div>
 
@@ -271,7 +304,7 @@ export default function HomePage() {
                 <div className="docu-queue-empty">
                   <div className="docu-queue-empty-number">0</div>
                   <p>아직 추가된 문서가 없습니다.</p>
-                  <span>왼쪽 업로드 영역에 파일을 올리면 이곳에 순서대로 쌓입니다.</span>
+                  <span>왼쪽 업로드 영역에 파일을 올리면 여기에 순서대로 쌓입니다.</span>
                 </div>
               ) : (
                 <div className="docu-list-table">
@@ -307,7 +340,7 @@ export default function HomePage() {
                             {getStatusLabel(item.status, item.error)}
                           </div>
                         </div>
-                        <div className="flex shrink-0 gap-2">
+                        <div className="docu-list-actions">
                           <button
                             type="button"
                             onClick={() =>
