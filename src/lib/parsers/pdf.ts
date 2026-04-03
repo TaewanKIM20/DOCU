@@ -704,6 +704,9 @@ export async function parsePdf(buffer: Buffer): Promise<PdfParseResult> {
 
 async function loadPdfDocument(buffer: Buffer) {
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
+  if (!(globalThis as any).pdfjsWorker?.WorkerMessageHandler) {
+    ;(globalThis as any).pdfjsWorker = await import('pdfjs-dist/legacy/build/pdf.worker.mjs')
+  }
 
   const loadingTask = pdfjsLib.getDocument({
     data: new Uint8Array(buffer),
