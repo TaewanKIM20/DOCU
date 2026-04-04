@@ -7,9 +7,9 @@ interface UploadZoneProps {
   isBusy: boolean
 }
 
-const ACCEPT = '.docx,.doc,.pdf,.png,.jpg,.jpeg,.webp,.txt,.md,.hwpx,.skkf'
+const ACCEPT = '.docx,.doc,.pdf,.png,.jpg,.jpeg,.webp,.txt,.md,.hwpx'
 
-const SUPPORTED_FORMATS = ['docx', 'doc', 'pdf', 'png', 'jpg', 'jpeg', 'webp', 'txt', 'md', 'hwpx', 'skkf']
+const SUPPORTED_FORMATS = ['docx', 'doc', 'pdf', 'png', 'jpg', 'jpeg', 'webp', 'txt', 'md', 'hwpx']
 
 export default function UploadZone({ onFilesSelected, isBusy }: UploadZoneProps) {
   const inputRef = useRef<HTMLInputElement>(null)

@@ -357,20 +357,6 @@ export default function EditorPage() {
     [currentDocument, saveDocumentById, syncCurrentEditorSnapshot]
   )
 
-  const handleDownloadSkkf = useCallback(async () => {
-    if (!currentDocument) return
-
-    const latestBase64 = (await saveCurrentDocument(false)) ?? currentDocument.skkfBase64
-    const blob = base64ToBlob(latestBase64, 'application/x-skkf')
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `${title || currentDocument.manifest.title || 'document'}.skkf`
-    link.click()
-    URL.revokeObjectURL(url)
-    setStatusMsg('워크스페이스 파일을 다운로드했습니다.')
-    setTimeout(() => setStatusMsg(''), 2000)
-  }, [currentDocument, saveCurrentDocument, title])
 
   const handleExportPdf = useCallback(async () => {
     const currentSession = sessionRef.current
@@ -499,9 +485,6 @@ export default function EditorPage() {
           />
         </div>
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={handleDownloadSkkf} className="docu-button docu-button-secondary">
-            워크스페이스 저장
-          </button>
           <button type="button" onClick={() => void saveCurrentDocument(true)} disabled={isSaving} className="docu-button docu-button-primary">
             {isSaving ? '저장 중...' : '저장'}
           </button>
@@ -716,7 +699,6 @@ export default function EditorPage() {
                 editor={editor}
                 onSave={() => void saveCurrentDocument(true)}
                 onExportPdf={handleExportPdf}
-                onDownloadSkkf={handleDownloadSkkf}
                 isSaving={isSaving}
                 isExporting={isExporting}
                 title={title}

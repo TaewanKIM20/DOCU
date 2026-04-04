@@ -7,7 +7,6 @@ interface ToolbarProps {
   editor: Editor | null
   onSave: () => void
   onExportPdf: () => void
-  onDownloadSkkf: () => void
   isSaving: boolean
   isExporting: boolean
   title: string
@@ -46,7 +45,6 @@ export default function Toolbar({
   editor,
   onSave,
   onExportPdf,
-  onDownloadSkkf,
   isSaving,
   isExporting,
   title,
@@ -72,9 +70,6 @@ export default function Toolbar({
           />
         </div>
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={onDownloadSkkf} className="docu-button docu-button-secondary">
-            워크스페이스 저장
-          </button>
           <button type="button" onClick={onSave} disabled={isSaving} className="docu-button docu-button-primary">
             {isSaving ? '저장 중...' : '저장'}
           </button>
