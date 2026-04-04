@@ -326,6 +326,18 @@ function normalizeDrawableSync(source: any) {
   return source
 }
 
+function normalizePdfErrorMessage(message: string) {
+  if (!message) return '알 수 없는 오류'
+  if (!/[ㄱ-힝]/.test(message) && /[À-ɏ�]/.test(message)) {
+    try {
+      return Buffer.from(message, 'latin1').toString('utf8')
+    } catch {
+      return message
+    }
+  }
+  return message
+}
+
 async function normalizeDrawable(source: any) {
   const normalized = normalizeDrawableSync(source)
   if (normalized !== source) return normalized
@@ -364,7 +376,7 @@ export async function parsePdf(buffer: Buffer): Promise<PdfParseResult> {
 
   const pageCount = Math.min(pdfDocument.numPages, PDF_MAX_PAGES)
   if (pdfDocument.numPages > PDF_MAX_PAGES) {
-    warnings.push(`臾몄꽌媛 湲몄뼱 泥섏쓬 ${PDF_MAX_PAGES}?섏씠吏留?遺덈윭?붿뒿?덈떎.`)
+    warnings.push(`문서가 길어 처음 ${PDF_MAX_PAGES}페이지만 불러왔습니다.`)
   }
 
   const layouts: PageTextLayout[] = []
@@ -384,9 +396,9 @@ export async function parsePdf(buffer: Buffer): Promise<PdfParseResult> {
     const selectablePageCount = pageModes.filter((mode) => mode === 'selectable').length
 
     if (!hasSelectableText) {
-      warnings.push(`珥?${pageCount}?섏씠吏媛 ?ㅼ틪 PDF濡?蹂댁뿬 OCR濡??몄떇?덉뒿?덈떎. 湲???꾩튂???먮낯怨??쎄컙 ?ㅻ? ???덉뒿?덈떎.`)
+      warnings.push(`총 ${pageCount}페이지가 스캔 PDF로 보여 OCR로 인식했습니다. 글자 위치는 원본과 약간 다를 수 있습니다.`)
     } else if (ocrPageCount > 0) {
-      warnings.push('?쇰? ?섏씠吏???띿뒪??異붿텧 ?덉쭏????븘 OCR濡??ㅼ떆 ?몄떇?덉뒿?덈떎.')
+      warnings.push('일부 페이지는 텍스트 추출 정확도가 낮아 OCR로 다시 인식했습니다.')
     }
 
     let renderFallbackUsed = false
@@ -512,7 +524,7 @@ export async function parsePdf(buffer: Buffer): Promise<PdfParseResult> {
             continue
           }
 
-          throw new Error(`PDF ?대?吏 蹂???ㅽ뙣: ${(error as Error).message}`)
+          throw new Error(`PDF 페이지 변환 실패: ${normalizePdfErrorMessage((error as Error).message)}`)
         } finally {
           page.cleanup()
         }
@@ -524,7 +536,7 @@ export async function parsePdf(buffer: Buffer): Promise<PdfParseResult> {
     }
 
     if (renderFallbackUsed) {
-      warnings.push('?쇰? ?섏씠吏??諛곌꼍 ?뚮뜑留곸씠 ?대젮???띿뒪???덉씠?대쭔 ?쒖떆?섍굅???꾩껜 ?뚮뜑 ?대?吏瑜??뺣━???ъ슜?덉뒿?덈떎.')
+      warnings.push('일부 페이지는 배경 렌더링이 어려워 텍스트 레이어만 표시하거나, 전체 렌더 이미지를 정리해 사용했습니다.')
     }
 
     return {
@@ -595,7 +607,7 @@ export async function parsePdf(buffer: Buffer): Promise<PdfParseResult> {
     }
 
     if (renderFallbackUsed) {
-      warnings.push('?쇰? PDF ?붿냼瑜?諛곌꼍 ?대?吏濡??뚮뜑留곹븯吏 紐삵빐 ?띿뒪???덉씠?대쭔 ?쒖떆?덉뒿?덈떎.')
+      warnings.push('일부 PDF 요소를 배경 이미지로 렌더링하지 못해 텍스트 레이어만 표시했습니다.')
     }
 
     return {
@@ -606,7 +618,7 @@ export async function parsePdf(buffer: Buffer): Promise<PdfParseResult> {
     }
   }
 
-  warnings.push(`珥?${pageCount}?섏씠吏???ㅼ틪 PDF濡?蹂댁엯?덈떎. OCR 寃곌낵??湲???꾩튂媛 ?쇰? ?щ씪吏????덉뒿?덈떎.`)
+  warnings.push(`총 ${pageCount}페이지가 스캔 PDF로 보입니다. OCR 결과는 글자 위치가 일부 달라질 수 있습니다.`)
 
   const pageImages: Buffer[] = []
 
@@ -621,7 +633,7 @@ export async function parsePdf(buffer: Buffer): Promise<PdfParseResult> {
     }
   } catch (error) {
     if (totalTextLength > 0) {
-      warnings.push('PDF 諛곌꼍 ?대?吏瑜?留뚮뱾吏 紐삵빐 諛곌꼍 ?놁씠 ?띿뒪???덉씠?대쭔 ?쒖떆?덉뒿?덈떎.')
+      warnings.push('PDF 배경 이미지를 만들지 못해 배경 없이 텍스트 레이어만 표시했습니다.')
       return {
         html: wrapPdfHtml(
           layouts.map((layout, index) =>
@@ -634,7 +646,7 @@ export async function parsePdf(buffer: Buffer): Promise<PdfParseResult> {
       }
     }
 
-    throw new Error(`PDF ?대?吏 蹂???ㅽ뙣: ${(error as Error).message}`)
+    throw new Error(`PDF 페이지 변환 실패: ${normalizePdfErrorMessage((error as Error).message)}`)
   }
 
   const { createWorker } = await import('tesseract.js')
@@ -794,7 +806,7 @@ async function extractTextLayout(page: any, pdfjsLib: PdfJsLib, scale: number): 
   const viewport = page.getViewport({ scale })
   const textContent = await page.getTextContent({
     normalizeWhitespace: false,
-    disableCombineTextItems: false,
+    disableCombineTextItems: true,
   } as any)
   const graphicLayer = await extractGraphicObjects(page, pdfjsLib, viewport)
   const styles = (textContent as any).styles || {}
